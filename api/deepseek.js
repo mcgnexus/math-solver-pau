@@ -54,7 +54,7 @@ INSTRUCCIONES IMPORTANTES:
 Ejemplo de formato:
 "Derivada de $f(x)=x^2$:
 Aplicando la regla de potencias: $n·x^{n-1}$
-Resultado: $f'(x)=2x$ (dos equis)"`;
+Resultado: $f'(x)=2x$"`;
 
         const fullPrompt = `${systemPrompt}\n\nResuelve: ${prompt}`;
 
