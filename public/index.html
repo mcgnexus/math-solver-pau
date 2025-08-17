@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solucionador Matemático PAU - DeepSeek</title>
+    
+    <!-- KaTeX para renderizar LaTeX -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+            animation: slideIn 0.5s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        
+        .input-group {
+            margin-bottom: 25px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+            font-size: 0.95em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1.1em;
+            transition: all 0.3s ease;
+            font-family: 'Courier New', monospace;
+            background: #f8f9fa;
+        }
+        
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .operation-selector {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        
+        .radio-card {
+            flex: 1;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .radio-card input[type="radio"] {
+            position: absolute;
+            opacity: 0;
+        }
+        
+        .radio-label {
+            display: block;
+            padding: 15px;
+            text-align: center;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            background: #f8f9fa;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            color: #555;
+        }
+        
+        .radio-card:hover .radio-label {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.05);
+        }
+        
+        .radio-card input[type="radio"]:checked ~ .radio-label {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: transparent;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 15px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #666;
+        }
+        
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .loading.active {
+            display: block;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .result-container {
+            margin-top: 30px;
+            padding: 25px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 15px;
+            display: none;
+            animation: fadeIn 0.5s ease-out;
+        }
+        
+        .result-container.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .result-title {
+            color: #333;
+            font-size: 1.3em;
+            margin-bottom: 15px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .result-content {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            line-height: 1.8;
+            color: #444;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .result-content .katex-display {
+            margin: 15px 0;
+            overflow-x: auto;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+            animation: shake 0.5s;
+        }
+        
+        .error.active {
+            display: block;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+        
+        .examples {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 10px;
+            font-size: 0.9em;
+        }
+        
+        .examples h3 {
+            color: #666;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+        
+        .example-item {
+            display: inline-block;
+            margin: 5px;
+            padding: 8px 12px;
+            background: white;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .example-item:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+        }
+        
+        .stats {
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: 8px;
+            font-size: 0.85em;
+            color: #666;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                padding: 25px;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+            
+            .operation-selector {
+                flex-direction: column;
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📐 Matemáticas PAU</h1>
+        <p class="subtitle">Resuelve derivadas e integrales paso a paso con IA</p>
+        
+        <div class="input-group">
+            <label for="function-input">Introduce la función</label>
+            <input 
+                type="text" 
+                id="function-input" 
+                placeholder="Ej: x^2 + 3x - 5, sin(x), e^x, ln(x), etc."
+                autocomplete="off"
+            >
+        </div>
+        
+        <div class="operation-selector">
+            <div class="radio-card">
+                <input type="radio" id="derivative" name="operation" value="derivada" checked>
+                <label for="derivative" class="radio-label">
+                    <span>∂/∂x</span> Derivada
+                </label>
+            </div>
+            <div class="radio-card">
+                <input type="radio" id="integral" name="operation" value="integral">
+                <label for="integral" class="radio-label">
+                    <span>∫</span> Integral
+                </label>
+            </div>
+        </div>
+        
+        <div class="button-group">
+            <button class="btn-primary" onclick="solveFunction()">
+                Resolver
+            </button>
+            <button class="btn-secondary" onclick="clearAll()">
+                Limpiar
+            </button>
+        </div>
+        
+        <div class="examples">
+            <h3>Ejemplos rápidos (click para usar):</h3>
+            <span class="example-item" onclick="setExample('x^3 + 2x^2 - 5x + 1')">x³ + 2x² - 5x + 1</span>
+            <span class="example-item" onclick="setExample('sin(x) * cos(x)')">sin(x) · cos(x)</span>
+            <span class="example-item" onclick="setExample('e^(2x)')">e^(2x)</span>
+            <span class="example-item" onclick="setExample('ln(x^2 + 1)')">ln(x² + 1)</span>
+            <span class="example-item" onclick="setExample('sqrt(x)')">√x</span>
+            <span class="example-item" onclick="setExample('1/(x^2 + 1)')">1/(x² + 1)</span>
+        </div>
+        
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>Procesando tu solicitud...</p>
+        </div>
+        
+        <div class="error">
+            <strong>Error:</strong> <span id="error-message"></span>
+        </div>
+        
+        <div class="result-container">
+            <h2 class="result-title">
+                <span id="operation-icon"></span>
+                Solución paso a paso
+            </h2>
+            <div class="result-content" id="result-content"></div>
+            <div class="stats" id="stats"></div>
+        </div>
+    </div>
+    
+    <script>
+        // Configuración de la API
+        const API_URL = '/api/deepseek'; // Ajusta esto según tu configuración de Vercel
+        
+        // Función para establecer ejemplos
+        function setExample(func) {
+            document.getElementById('function-input').value = func;
+            document.getElementById('function-input').focus();
+        }
+        
+        // Función principal para resolver
+        async function solveFunction() {
+            const functionInput = document.getElementById('function-input').value.trim();
+            const operation = document.querySelector('input[name="operation"]:checked').value;
+            
+            // Validación
+            if (!functionInput) {
+                showError('Por favor, introduce una función');
+                return;
+            }
+            
+            // Validación básica de la función
+            if (!validateFunction(functionInput)) {
+                showError('La función contiene caracteres no válidos');
+                return;
+            }
+            
+            // Preparar UI
+            hideError();
+            hideResult();
+            showLoading();
+            disableButtons(true);
+            
+            // Construir el prompt
+            const prompt = `Calcula la ${operation} de la función: f(x) = ${functionInput}
+            
+            Proporciona una solución paso a paso clara y didáctica para un estudiante de 2º de Bachillerato.
+            Usa notación LaTeX para las fórmulas matemáticas.`;
+            
+            try {
+                // Llamar a la API
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ prompt })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Error HTTP: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success && data.resultado) {
+                    displayResult(data.resultado, operation, data.tokens, data.modelo);
+                } else {
+                    throw new Error(data.error || 'Error desconocido');
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showError('No se pudo procesar la solicitud. Por favor, intenta de nuevo.');
+            } finally {
+                hideLoading();
+                disableButtons(false);
+            }
+        }
+        
+        // Función para validar la función matemática
+        function validateFunction(func) {
+            // Permitir solo caracteres matemáticos básicos
+            const validPattern = /^[0-9x\+\-\*\/\^\(\)\s\.eπsin|cos|tan|log|ln|sqrt|abs]+$/i;
+            return validPattern.test(func);
+        }
+        
+        // Función para mostrar el resultado
+        function displayResult(content, operation, tokens, modelo) {
+            const resultContainer = document.querySelector('.result-container');
+            const resultContent = document.getElementById('result-content');
+            const operationIcon = document.getElementById('operation-icon');
+            const stats = document.getElementById('stats');
+            
+            // Establecer icono de operación
+            operationIcon.textContent = operation === 'derivada' ? '∂/∂x' : '∫';
+            
+            // Procesar el contenido para mejorar el formato
+            let processedContent = processContent(content);
+            
+            // Mostrar el contenido
+            resultContent.innerHTML = processedContent;
+            
+            // Renderizar LaTeX
+            renderMathInElement(resultContent, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false},
+                    {left: '\\[', right: '\\]', display: true},
+                    {left: '\\(', right: '\\)', display: false}
+                ],
+                throwOnError: false
+            });
+            
+            // Mostrar estadísticas
+            if (tokens && modelo) {
+                stats.innerHTML = `
+                    <span>⚡ Modelo: ${modelo}</span>
+                    <span>📊 Tokens utilizados: ${tokens}</span>
+                `;
+            }
+            
+            // Mostrar el contenedor
+            resultContainer.classList.add('active');
+            
+            // Scroll suave hacia el resultado
+            setTimeout(() => {
+                resultContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 100);
+        }
+        
+        // Función para procesar el contenido y mejorar el formato
+        function processContent(content) {
+            // Convertir saltos de línea en párrafos
+            let processed = content.replace(/\n\n/g, '</p><p>');
+            processed = '<p>' + processed + '</p>';
+            
+            // Resaltar pasos
+            processed = processed.replace(/Paso (\d+):/gi, '<strong>Paso $1:</strong>');
+            processed = processed.replace(/Resultado:/gi, '<strong>Resultado:</strong>');
+            processed = processed.replace(/Solución:/gi, '<strong>Solución:</strong>');
+            
+            // Agregar estilos a elementos específicos
+            processed = processed.replace(/Recuerda:/gi, '<em>💡 Recuerda:</em>');
+            processed = processed.replace(/Nota:/gi, '<em>📝 Nota:</em>');
+            processed = processed.replace(/Importante:/gi, '<em>⚠️ Importante:</em>');
+            
+            return processed;
+        }
+        
+        // Función para limpiar todo
+        function clearAll() {
+            document.getElementById('function-input').value = '';
+            hideResult();
+            hideError();
+            document.getElementById('function-input').focus();
+        }
+        
+        // Funciones de UI
+        function showLoading() {
+            document.querySelector('.loading').classList.add('active');
+        }
+        
+        function hideLoading() {
+            document.querySelector('.loading').classList.remove('active');
+        }
+        
+        function showError(message) {
+            const errorElement = document.querySelector('.error');
+            document.getElementById('error-message').textContent = message;
+            errorElement.classList.add('active');
+        }
+        
+        function hideError() {
+            document.querySelector('.error').classList.remove('active');
+        }
+        
+        function hideResult() {
+            document.querySelector('.result-container').classList.remove('active');
+        }
+        
+        function disableButtons(disabled) {
+            document.querySelectorAll('button').forEach(btn => {
+                btn.disabled = disabled;
+            });
+        }
+        
+        // Event listener para Enter en el input
+        document.getElementById('function-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                solveFunction();
+            }
+        });
+        
+        // Inicialización
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('function-input').focus();
+        });
+    </script>
+</body>
+</html>
