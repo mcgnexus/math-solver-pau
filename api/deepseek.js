@@ -1,11 +1,11 @@
-// api/deepseek.js - Versión optimizada para evitar timeouts
+// api/deepseek.js - Usando Google Gemini API
 export default async function handler(req, res) {
     // Configurar CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     
-    // Manejar preflight
+    // Manejar OPTIONS para CORS
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
@@ -21,94 +21,116 @@ export default async function handler(req, res) {
     try {
         const { prompt } = req.body;
 
-        // Validación básica
-        if (!prompt || typeof prompt !== 'string') {
+        if (!prompt) {
             return res.status(400).json({ 
                 success: false,
                 error: 'Prompt requerido' 
             });
         }
 
-        // TEST: Si el usuario escribe "test", verificar configuración
-        if (prompt.toLowerCase() === 'test') {
-            return res.status(200).json({
-                success: true,
-                resultado: `✅ Conexión exitosa!\n\nAPI Key configurada: ${!!process.env.DEEPSEEK_API_KEY}\nServidor funcionando correctamente.`,
-                tokens: 0,
-                modelo: 'Test Mode'
-            });
-        }
-
         // Verificar API key
-        if (!process.env.DEEPSEEK_API_KEY) {
-            console.error('DEEPSEEK_API_KEY no configurada');
+        if (!process.env.GEMINI_API_KEY) {
+            console.error('GEMINI_API_KEY no configurada');
             return res.status(500).json({ 
                 success: false,
                 error: 'Error de configuración: API Key no encontrada' 
             });
         }
 
-        // Limitar longitud del prompt para respuestas más rápidas
-        const promptLimitado = prompt.substring(0, 200);
+        // Construir el prompt optimizado para matemáticas
+        const systemPrompt = `Eres un experto en matemáticas para estudiantes de 2º bachillerato preparando la PAU/Selectividad.
 
-        // Crear un timeout más agresivo (8 segundos para dejar margen)
+INSTRUCCIONES IMPORTANTES:
+1. Responde de forma BREVE y CLARA (máximo 4-5 pasos)
+2. Usa notación LaTeX para las fórmulas matemáticas:
+   - Inline: $formula$
+   - Display: $$formula$$
+3. Estructura tu respuesta así:
+   - Identificar la función
+   - Aplicar la regla correspondiente
+   - Mostrar el resultado final
+4. Después de cada fórmula LaTeX, incluye su lectura en texto natural entre paréntesis
+5. Sé motivador y accesible
+
+Ejemplo de formato:
+"Derivada de $f(x)=x^2$:
+Aplicando la regla de potencias: $n·x^{n-1}$
+Resultado: $f'(x)=2x$ (dos equis)"`;
+
+        const fullPrompt = `${systemPrompt}\n\nResuelve: ${prompt}`;
+
+        // Configurar timeout de 8 segundos
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 8000);
 
         try {
-            // Llamar a DeepSeek con configuración optimizada
-            const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`
-                },
-                body: JSON.stringify({
-                    model: 'deepseek-chat',
-                    messages: [
-                        {
-                            role: 'system',
-                            content: `Eres un tutor de matemáticas. IMPORTANTE: Responde de forma BREVE y DIRECTA.
-                            
-Instrucciones para derivadas e integrales:
-1. Identifica la función
-2. Aplica la regla correspondiente
-3. Muestra el resultado final
-
-Usa notación LaTeX simple. Máximo 3-4 pasos. Sé conciso.`
+            // Llamar a Gemini API
+            const response = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{
+                                text: fullPrompt
+                            }]
+                        }],
+                        generationConfig: {
+                            temperature: 0.3,
+                            maxOutputTokens: 500,
+                            topP: 0.8,
+                            topK: 40
                         },
-                        {
-                            role: 'user',
-                            content: promptLimitado
-                        }
-                    ],
-                    // Configuración optimizada para respuestas rápidas
-                    temperature: 0.3,
-                    max_tokens: 300,  // Reducido para respuestas más rápidas
-                    top_p: 0.9,
-                    stream: false
-                }),
-                signal: controller.signal
-            });
+                        safetySettings: [
+                            {
+                                category: "HARM_CATEGORY_HARASSMENT",
+                                threshold: "BLOCK_NONE"
+                            },
+                            {
+                                category: "HARM_CATEGORY_HATE_SPEECH",
+                                threshold: "BLOCK_NONE"
+                            },
+                            {
+                                category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                                threshold: "BLOCK_NONE"
+                            },
+                            {
+                                category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+                                threshold: "BLOCK_NONE"
+                            }
+                        ]
+                    }),
+                    signal: controller.signal
+                }
+            );
 
             clearTimeout(timeoutId);
 
-            // Verificar respuesta
             if (!response.ok) {
-                const errorText = await response.text().catch(() => 'Sin detalles');
-                console.error('Error de DeepSeek:', response.status, errorText);
+                const errorData = await response.text();
+                console.error('Gemini API error:', response.status, errorData);
+                
+                if (response.status === 400) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Solicitud inválida. Verifica el formato de la función.'
+                    });
+                }
+                
+                if (response.status === 403) {
+                    return res.status(403).json({
+                        success: false,
+                        error: 'API Key inválida o sin permisos. Verifica tu configuración.'
+                    });
+                }
                 
                 if (response.status === 429) {
                     return res.status(429).json({
                         success: false,
-                        error: 'Límite de API excedido. Intenta en unos momentos.'
-                    });
-                }
-                
-                if (response.status === 401) {
-                    return res.status(401).json({
-                        success: false,
-                        error: 'API Key inválida. Verifica tu configuración.'
+                        error: 'Límite de solicitudes excedido. Intenta en unos segundos.'
                     });
                 }
                 
@@ -117,35 +139,36 @@ Usa notación LaTeX simple. Máximo 3-4 pasos. Sé conciso.`
 
             const data = await response.json();
             
-            // Validar respuesta
-            if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-                throw new Error('Respuesta inválida de DeepSeek');
+            // Extraer la respuesta de Gemini
+            let resultado = '';
+            if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+                resultado = data.candidates[0].content.parts[0].text;
+            } else {
+                throw new Error('Respuesta inválida de Gemini');
             }
-
-            const resultado = data.choices[0].message.content.trim();
+            
+            // Calcular tokens aproximados (Gemini no siempre los devuelve)
+            const tokensUsados = data.usageMetadata?.totalTokenCount || 
+                               Math.round(resultado.length / 4);
             
             return res.status(200).json({
                 success: true,
-                resultado: resultado || 'No se pudo generar una respuesta.',
-                tokens: data.usage?.total_tokens || 0,
-                modelo: 'DeepSeek Chat (Optimizado)'
+                resultado: resultado.trim(),
+                tokens: tokensUsados,
+                modelo: 'Gemini 1.5 Flash'
             });
 
         } catch (innerError) {
             clearTimeout(timeoutId);
             
+            // Si es timeout, dar respuesta básica
             if (innerError.name === 'AbortError') {
-                // Timeout - dar una respuesta básica
-                console.log('Timeout detectado, enviando respuesta básica');
-                
-                // Respuesta de emergencia para funciones comunes
-                const respuestaEmergencia = generarRespuestaBasica(prompt);
-                
+                console.log('Timeout - enviando respuesta básica');
                 return res.status(200).json({
                     success: true,
-                    resultado: respuestaEmergencia,
+                    resultado: generarRespuestaRapida(prompt),
                     tokens: 0,
-                    modelo: 'Respuesta Rápida (sin IA)'
+                    modelo: 'Respuesta Rápida (Timeout)'
                 });
             }
             
@@ -153,67 +176,73 @@ Usa notación LaTeX simple. Máximo 3-4 pasos. Sé conciso.`
         }
 
     } catch (error) {
-        console.error('Error general:', error.message);
-        
+        console.error('Error general:', error);
         return res.status(500).json({
             success: false,
-            error: 'Error procesando la solicitud. Intenta con una función más simple.'
+            error: 'Error al procesar la solicitud. Por favor, intenta de nuevo.'
         });
     }
 }
 
-// Función auxiliar para respuestas básicas cuando hay timeout
-function generarRespuestaBasica(prompt) {
-    const funcionLimpia = prompt.toLowerCase().trim();
+// Función de respaldo para cuando hay timeout
+function generarRespuestaRapida(prompt) {
+    const promptLower = prompt.toLowerCase();
+    const esIntegral = promptLower.includes('integral');
     
-    // Detectar si es derivada o integral
-    const esDerivada = prompt.toLowerCase().includes('derivada');
-    const esIntegral = prompt.toLowerCase().includes('integral');
-    
-    if (funcionLimpia.includes('x^2') || funcionLimpia.includes('x²')) {
-        if (esIntegral) {
-            return `**Integral de x²:**\n\nAplicando la regla de potencias:\n∫x² dx = x³/3 + C\n\nDonde C es la constante de integración.`;
-        }
-        return `**Derivada de x²:**\n\nAplicando la regla de potencias:\nf(x) = x²\nf'(x) = 2x\n\n**Resultado:** 2x`;
+    // Respuestas rápidas para funciones comunes
+    if (promptLower.includes('x^2') || promptLower.includes('x²')) {
+        return esIntegral 
+            ? `**Integral de $x^2$:**\n\nAplicando la regla de potencias:\n$$\\int x^2 \\, dx = \\frac{x^3}{3} + C$$\n\nDonde C es la constante de integración.`
+            : `**Derivada de $x^2$:**\n\nAplicando la regla de potencias:\n$$f'(x) = 2x$$\n\nLa derivada de x² es 2x (dos equis).`;
     }
     
-    if (funcionLimpia.includes('x^3') || funcionLimpia.includes('x³')) {
-        if (esIntegral) {
-            return `**Integral de x³:**\n\nAplicando la regla de potencias:\n∫x³ dx = x⁴/4 + C\n\nDonde C es la constante de integración.`;
-        }
-        return `**Derivada de x³:**\n\nAplicando la regla de potencias:\nf(x) = x³\nf'(x) = 3x²\n\n**Resultado:** 3x²`;
+    if (promptLower.includes('x^3') || promptLower.includes('x³')) {
+        return esIntegral
+            ? `**Integral de $x^3$:**\n\n$$\\int x^3 \\, dx = \\frac{x^4}{4} + C$$`
+            : `**Derivada de $x^3$:**\n\n$$f'(x) = 3x^2$$`;
     }
     
-    if (funcionLimpia.includes('sin') || funcionLimpia.includes('sen')) {
-        if (esIntegral) {
-            return `**Integral de sin(x):**\n\n∫sin(x) dx = -cos(x) + C\n\nDonde C es la constante de integración.`;
-        }
-        return `**Derivada de sin(x):**\n\nf(x) = sin(x)\nf'(x) = cos(x)\n\n**Resultado:** cos(x)`;
+    if (promptLower.includes('sin') || promptLower.includes('sen')) {
+        return esIntegral
+            ? `**Integral de $\\sin(x)$:**\n\n$$\\int \\sin(x) \\, dx = -\\cos(x) + C$$`
+            : `**Derivada de $\\sin(x)$:**\n\n$$f'(x) = \\cos(x)$$`;
     }
     
-    if (funcionLimpia.includes('cos')) {
-        if (esIntegral) {
-            return `**Integral de cos(x):**\n\n∫cos(x) dx = sin(x) + C\n\nDonde C es la constante de integración.`;
-        }
-        return `**Derivada de cos(x):**\n\nf(x) = cos(x)\nf'(x) = -sin(x)\n\n**Resultado:** -sin(x)`;
+    if (promptLower.includes('cos')) {
+        return esIntegral
+            ? `**Integral de $\\cos(x)$:**\n\n$$\\int \\cos(x) \\, dx = \\sin(x) + C$$`
+            : `**Derivada de $\\cos(x)$:**\n\n$$f'(x) = -\\sin(x)$$`;
     }
     
-    if (funcionLimpia.includes('e^x') || funcionLimpia.includes('exp')) {
-        if (esIntegral) {
-            return `**Integral de e^x:**\n\n∫e^x dx = e^x + C\n\nLa función exponencial es su propia integral.`;
-        }
-        return `**Derivada de e^x:**\n\nf(x) = e^x\nf'(x) = e^x\n\nLa función exponencial es su propia derivada.`;
+    if (promptLower.includes('e^x') || promptLower.includes('exp')) {
+        return esIntegral
+            ? `**Integral de $e^x$:**\n\n$$\\int e^x \\, dx = e^x + C$$\n\nLa función exponencial es su propia integral.`
+            : `**Derivada de $e^x$:**\n\n$$f'(x) = e^x$$\n\nLa función exponencial es su propia derivada.`;
+    }
+    
+    if (promptLower.includes('ln') || promptLower.includes('log')) {
+        return esIntegral
+            ? `**Integral de $\\ln(x)$:**\n\nUsando integración por partes:\n$$\\int \\ln(x) \\, dx = x\\ln(x) - x + C$$`
+            : `**Derivada de $\\ln(x)$:**\n\n$$f'(x) = \\frac{1}{x}$$`;
+    }
+    
+    if (promptLower.includes('1/x')) {
+        return esIntegral
+            ? `**Integral de $\\frac{1}{x}$:**\n\n$$\\int \\frac{1}{x} \\, dx = \\ln|x| + C$$`
+            : `**Derivada de $\\frac{1}{x}$:**\n\n$$f'(x) = -\\frac{1}{x^2}$$`;
     }
     
     // Respuesta genérica
-    return `⚠️ La respuesta tardó demasiado tiempo. 
+    return `⚠️ **Timeout del servidor**
+
+La respuesta tardó más de 10 segundos. 
 
 **Sugerencias:**
-1. Intenta con una función más simple
-2. Escribe "test" para verificar la conexión
-3. Ejemplos que funcionan bien: x^2, x^3, sin(x), cos(x), e^x
+• Intenta con funciones más simples
+• Ejemplos: x^2, x^3, sin(x), cos(x), e^x, ln(x)
+• Evita funciones muy complejas
 
-**Nota:** El servidor tiene un límite de 10 segundos para responder. Funciones muy complejas pueden exceder este tiempo.`;
+Nota: El límite de tiempo es por el plan gratuito de Vercel.`;
 }
 
 // Configuración para Vercel
