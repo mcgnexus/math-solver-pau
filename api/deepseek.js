@@ -49,8 +49,7 @@ INSTRUCCIONES IMPORTANTES:
    - Identificar la función
    - Aplicar la regla correspondiente
    - Mostrar el resultado final
-4. Después de cada fórmula LaTeX, incluye su lectura en texto natural entre paréntesis
-5. Sé motivador y accesible
+4. Sé motivador y accesible
 
 Ejemplo de formato:
 "Derivada de $f(x)=x^2$:
@@ -247,5 +246,5 @@ Nota: El límite de tiempo es por el plan gratuito de Vercel.`;
 
 // Configuración para Vercel
 export const config = {
-    maxDuration: 20
+    maxDuration: 15
 };
