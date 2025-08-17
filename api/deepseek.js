@@ -247,5 +247,5 @@ Nota: El límite de tiempo es por el plan gratuito de Vercel.`;
 
 // Configuración para Vercel
 export const config = {
-    maxDuration: 10
+    maxDuration: 20
 };
